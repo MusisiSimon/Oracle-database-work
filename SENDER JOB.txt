@@ -1,0 +1,29 @@
+declare
+  ACCOUNT_SENDER number;
+begin
+ dbms_job.submit(
+  ACCOUNT_SENDER,
+   what=>'ACCOUNT_SENDER;',
+   next_date=>SYSDATE , 
+   interval=>'trunc(sysdate+1/144,''MI'')' -- every ten minutes
+ ); 
+ commit; -- don't forget
+end;
+
+--select * from user_jobs
+
+
+
+create or replace PROCEDURE ACCOUNT_SENDER
+AS
+V_EFF_DATE     DATE;
+BEGIN
+    V_EFF_DATE  := '10FEB2016';
+    select to_char(SYSDATE-1,'ddmonyyyy') into V_EFF_DATE from dual;
+    insert into accountgens
+
+select a.cus_num,a.bra_code, a.cur_code, a.led_code, a.sub_acct_code, b.cus_sho_name, b.email, b.tel_num, 0 as email_sent, 0 as sms_sent 
+from account a inner join address b on a.bra_code = b.bra_code and a.cus_num = b.cus_num
+and a.date_open = (select bank_date from process where bra_code = 999) and a.sta_code = 1 and a.cus_num > 100000
+and a.cus_num not in (select cus_num from accountgens) and rownum=1;       
+END ACCOUNT_SENDER;

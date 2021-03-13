@@ -1,0 +1,39 @@
+-Job Automation
+declare
+  job_afn_batch number;
+
+begin
+
+ dbms_job.submit(
+  job_afn_batch,
+   what=>'AFN_BATCH;',
+   next_date=>TRUNC(SYSDATE + 1)+ 1/24, -- at 01:00 am
+   interval=>'sysdate+1' -- daily
+ ); 
+ commit; -- don't forget
+end;
+
+--select * from user_jobs
+
+
+CREATE OR REPLACE PROCEDURE AFN_BATCH
+AS
+BEGIN
+   -- RESET TELLER LIMITS
+    --TELLER_RESET;
+   -- MANTAIN THE BELOW MINIMUM CURRENT BALANCE ON LEDGERS (5106,5118)
+    --CA_MIN_BAL_LIM;
+   -- ALIGN ACCOUNT MANAGERS ON ACCOUNTS
+    SAS_AUTOMATION;
+
+END AFN_BATCH;
+
+create or replace PROCEDURE SAS_AUTOMATION
+AS
+V_EFF_DATE     DATE;
+BEGIN
+    V_EFF_DATE  := '10FEB2016';
+    select to_char(SYSDATE-1,'ddmonyyyy') into V_EFF_DATE from dual;
+    prc_run_daily_extraction(V_EFF_DATE);
+    prc_run_daily_transform(V_EFF_DATE);       
+END SAS_AUTOMATION;

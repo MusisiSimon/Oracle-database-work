@@ -1,0 +1,141 @@
+
+--DBMS_FGA - Oracle Fine Grained Auditing  At SCHEMA LEVEL 
+
+--Fine-grain auditing (FGA) allows us to audit users accessing data of a certain criteria. As per standard auditing we can audit 
+--select, insert, update and delete operations. We use the package dbms_fga to add, remove, enable and disable FGA auditing policies, 
+--it is virtually impossible to bypass these policies, one nice feature is that we can attach handlers (like a trigger) to the policies which can execute procedures.
+
+--Suppose your boss calls you one day and tells you that there has been some unexpected changes in the employee database.
+--Employees designation, their salary are being manipulated illegally
+--Such things have been continuing from a past few days and he asks if you could help getting hold of the culprit
+
+--What to Cover 
+
+1) Add a policy on a table FGA_TEST in the SCOTT schema
+2) The policy will report on any dml actions on this table affecting its 2 columns 'esal' and 'designation'
+3) Another user HACKER will execute dml queries on this table and we will try and investigate whether the actions of the HACKER are reported
+4) The corresponding event handler of this policy will be in a 3rd schema FGA_HANDLER .we will also find out if the audit event was handled properly
+
+--Note: Here it is worthwhile mentioning that the DBMS_FGA package can be used not only to audit records in case of data manipulation(DML) but also in cases where data might 
+--have been simply viewed depending upon the policy we define. eg:- in case of selecting particular records from a database table. 
+
+------------------------------------------------------------------------------------------Start
+--conn sys / as sysdba
+
+grant select table to scott;
+grant create user to scott;
+grant resource,connect to scott;
+
+--conn scott/root123
+
+--see who is connected 
+------------------------------------------------------------------------
+show user;
+USER is "SCOTT"
+
+--create a new schema FGA_HANDLER which will contain the event handler 
+
+create user fga_handler identified by fga_handler;
+
+--conn sys
+
+grant resource,connect to fga_handler;
+grant execute on DBMS_FGA to fga_handler;
+
+--create a new table ,FGA_TEST in SCOTT schema, on which we will enforce the audit conditions(policy) with the help of the DBMS_FGA package.
+
+create table fga_test (empno number,empname varchar2(30),esal number,designation varchar2(20));
+
+--Let us insert some dummy rows in it now
+
+ insert into FGA_TEST values(10000,'carol',100,'programmer'); 
+ insert into FGA_TEST values(10001,'dhruva',200,'analyst' );
+ insert into FGA_TEST values(10002,'shiba',300,'manager') ;
+
+--Given below are the parameters of the ADD_POLICY Procedure
+--add a policy on our FGA_TEST table such that whenever any user tries to insert, update or delete the eg: 'esal' or the 'designation' 
+--columns of any row of FGA_TEST table ,the action will be recorded
+
+BEGIN DBMS_FGA.ADD_POLICY ( object_schema => 'BANKSYS', object_name => 'ACCOUNT', policy_name => 'FGA_TEST_POLICY', audit_condition => NULL, audit_column => 'CRNT_BAL,EQU_BAL', 
+handler_schema => 'FGA_HANDLER', handler_module => 'sp_audit', enable => true,statement_types => 'INSERT,UPDATE,DELETE' );end;
+/
+
+--connect to the new schema we created
+
+conn fga_handler/fga_handler
+
+--create the table to store audit records 
+
+create table audit_event (audit_event_no number);
+
+--The procedure simply adds a record to the audit_event table each time it is executed and the column audit_event_no acts as counter which displays
+--the number of times the proc has been executed 
+
+create or replace procedure sp_audit(object_schema in varchar2,object_name in varchar2,policy_name in varchar2) as count number;
+begin select nvl(max(audit_event_no),0) into count from audit_event;insert into audit_event values (count+1); commit; end; 
+/
+
+--finally we create another schema ‘HACKER’ which tries to manipulate the values of the ‘esal’ or ‘designation’ columns of the FGA_TEST table
+
+--conn sys / as sysdba
+
+create user hacker identified by hacker;
+grant resource,connect to hacker;
+grant all on banksys.account to hacker;
+
+--Now we log onto HACKER and try to change the ‘designation’ of ‘carol’ from ‘Programmer’ to ‘manager’
+
+ select * from scott.fga_test;
+
+     EMPNO EMPNAME                        ESAL            DESIGNATION
+---------- ----------------------    -----------     --------------
+     10000 carol                                 100           programmer
+     10001 dhruva                               200          analyst
+     10002 shiba                                 300          manager
+
+
+conn hacker/hacker;
+update scott.fga_test set designation='manager' where empname='carol';
+
+--connect with SCOTT to see the dba_fga_audit_trail view to find if the event was recorded
+
+conn scott/root123
+
+col DB_USER for a12
+col OS_USER for a14
+col POLICY_NAME for a16
+col SQL_TEXT for a70
+select DB_USER,OS_USER,POLICY_NAME,SQL_TEXT, TIMESTAMP from dba_fga_audit_trail where POLICY_NAME='FGA_TEST_POLICY';
+
+
+--Connect to the FGA_HANDLER schema to see if the event handler(sp_audit) was called
+
+conn hacker/hacker;
+
+--We execute the following from HACKER schema
+
+select * from scott.fga_test;
+
+     EMPNO EMPNAME                        ESAL            DESIGNATION
+---------- ----------------------    -----------     --------------
+     10000 carol                                 100           programmer
+     10001 dhruva                               200          analyst
+     10002 shiba                                 300          manager
+     
+--Attack to change designation
+     
+update SCOTT.FGA_TEST set designation='HR' where name='shiba';
+
+--conn as sysdba to see who did what and when
+
+conn sys / as sysdba
+
+col DB_USER for a12
+col OS_USER for a14
+col POLICY_NAME for a16
+col SQL_TEXT for a70
+select DB_USER,OS_USER,POLICY_NAME,SQL_TEXT, TIMESTAMP from dba_fga_audit_trail where POLICY_NAME='FGA_TEST_POLICY';
+
+---------------------------------------------------------------------------------------------------------End
+
+ dbms_flashback.get_system_change_number

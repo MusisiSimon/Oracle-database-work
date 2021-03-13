@@ -1,0 +1,9 @@
+fdisk -l
+create the mount folders (datasto1,datasto2,datasto3)
+look for 1terabite drive
+
+mount /dev/mapper/mpathip1 /media/datasto1
+mount /dev/mapper/mpathip2 /media/datasto2
+mount /dev/mapper/mpathip3 /media/datasto3
+
+chmod 777/dev/st0

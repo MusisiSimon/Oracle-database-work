@@ -1,0 +1,26 @@
+BEGIN
+    DBMS_FGA.DROP_POLICY (
+        object_schema => 'BANKSYS',
+        object_name   => 'ACCOUNT',
+        policy_name   => 'FGA_TEST_POLICY');
+end;
+
+BEGIN
+DBMS_FGA.ENABLE_POLICY (
+object_schema    =>  'banksys',
+object_name      =>  'ACCOUNT',
+policy_name      =>  'ACCOUNT_POLICY',
+enable           =>   TRUE);END;
+
+BEGIN
+DBMS_FGA.DISABLE_POLICY (
+object_schema    =>  'banksys',
+object_name      =>  'ACCOUNT',
+policy_name      =>  'ACCOUNT_POLICY',
+enable           =>   TRUE);END;
+
+
+BEGIN DBMS_FGA.ADD_POLICY ( object_schema => 'BANKSYS', object_name => 'ACCOUNT', policy_name => 
+'FGA_TEST_POLICY', audit_condition => NULL, audit_column =>
+ 'tot_blo_amt,EQU_BAL', 'TOT_BLO_FUND',handler_schema => 'FGA_HANDLER', handler_module => 'sp_audit', enable => true,statement_types => 'INSERT,UPDATE,DELETE' );end;
+/
